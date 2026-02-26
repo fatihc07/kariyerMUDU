@@ -588,12 +588,20 @@ export default function KariyerPortal() {
 
   const deleteNote = async (id: string) => {
     if (!confirm('Bu toplantı notunu silmek istediğinize emin misiniz?')) return;
-    const { error } = await supabase.from('meeting_notes').delete().eq('id', id);
+    
+    // Optimistic UI update: remove from local state immediately
+    const previousNotes = [...notes];
+    setNotes(notes.filter(n => n.id !== id));
+
+    const { error, count } = await supabase.from('meeting_notes').delete().eq('id', id);
+    
     if (error) {
       console.error('Silme hatası:', error);
       alert('Silme hatası: ' + error.message);
+      setNotes(previousNotes); // Rollback on error
     } else {
-      fetchDashboardData(userProfile);
+      // If no error but also nothing deleted, it's likely RLS
+      await fetchDashboardData(userProfile);
     }
   };
 
@@ -1241,22 +1249,62 @@ export default function KariyerPortal() {
         <div className="dashboard-layout">
           {/* Mini Sidebar */}
           <aside className="sidebar">
-            <div className="logo-box" style={{ marginBottom: '2rem', background: 'white', padding: '6px', borderRadius: '15px', width: '44px', height: '44px' }}>
+            <div className="logo-box" onClick={() => setActiveView('public')} style={{ cursor: 'pointer', marginBottom: '2rem', background: 'white', padding: '6px', borderRadius: '15px', width: '44px', height: '44px' }}>
               <img src={UNIVERSITY_LOGO_URL} alt="Logo" />
             </div>
             
+            {/* Dashboard Sub-Tabs (Moved here) */}
             <div 
-              className={`nav-item ${adminTab === 'depts' ? 'active' : ''}`}
-              onClick={() => setAdminTab('depts')}
-              title="Bölümler"
+              className={`nav-item ${activeTab === 'main' && adminTab === 'depts' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('main'); setAdminTab('depts'); }}
+              title="Genel"
               style={{ width: '50px', padding: 0 }}
             >
               <LayoutDashboard size={22} />
             </div>
 
             <div 
-              className={`nav-item ${adminTab === 'lecturers' ? 'active' : ''}`}
-              onClick={() => setAdminTab('lecturers')}
+              className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
+              onClick={() => setActiveTab('analytics')}
+              title="Analiz"
+              style={{ width: '50px', padding: 0 }}
+            >
+              <BarChart3 size={22} />
+            </div>
+
+            <div 
+              className={`nav-item ${activeTab === 'activity' ? 'active' : ''}`}
+              onClick={() => setActiveTab('activity')}
+              title="Akış"
+              style={{ width: '50px', padding: 0 }}
+            >
+              <Clock size={22} />
+            </div>
+
+            <div 
+              className={`nav-item ${activeTab === 'calendar' ? 'active' : ''}`}
+              onClick={() => setActiveTab('calendar')}
+              title="Takvim"
+              style={{ width: '50px', padding: 0 }}
+            >
+              <CalendarIcon size={22} />
+            </div>
+
+            <div style={{ height: '1px', width: '30px', background: 'rgba(255,255,255,0.05)', margin: '1rem 0' }} />
+
+            {/* Admin Tabs */}
+            <div 
+              className={`nav-item ${activeTab === 'main' && adminTab === 'depts' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('main'); setAdminTab('depts'); }}
+              title="Bölümler"
+              style={{ width: '50px', padding: 0, display: 'none' }} // Hidden because it's merged with Genel or we can keep it
+            >
+              <Building2 size={22} />
+            </div>
+
+            <div 
+              className={`nav-item ${activeTab === 'main' && adminTab === 'lecturers' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('main'); setAdminTab('lecturers'); }}
               title="Koordinatörler"
               style={{ width: '50px', padding: 0 }}
             >
@@ -1265,8 +1313,8 @@ export default function KariyerPortal() {
 
             {role === 'admin' && (
               <div 
-                className={`nav-item ${adminTab === 'firms' ? 'active' : ''}`}
-                onClick={() => setAdminTab('firms')}
+                className={`nav-item ${activeTab === 'main' && adminTab === 'firms' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('main'); setAdminTab('firms'); }}
                 title="Firma Havuzu"
                 style={{ width: '50px', padding: 0 }}
               >
@@ -1274,10 +1322,9 @@ export default function KariyerPortal() {
               </div>
             )}
             
-
             <div
-              className={`nav-item ${adminTab === 'announcements' ? 'active' : ''}`}
-              onClick={() => setAdminTab('announcements')}
+              className={`nav-item ${activeTab === 'main' && adminTab === 'announcements' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('main'); setAdminTab('announcements'); }}
               title="Duyurular"
               style={{ width: '50px', padding: 0 }}
             >
@@ -1286,8 +1333,8 @@ export default function KariyerPortal() {
 
             {role === 'admin' && (
               <div
-                className={`nav-item ${adminTab === 'reset_requests' ? 'active' : ''}`}
-                onClick={() => setAdminTab('reset_requests')}
+                className={`nav-item ${activeTab === 'main' && adminTab === 'reset_requests' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('main'); setAdminTab('reset_requests'); }}
                 title="Şifre Talepleri"
                 style={{ width: '50px', padding: 0, position: 'relative' }}
               >
@@ -1299,8 +1346,8 @@ export default function KariyerPortal() {
             )}
 
             <div
-              className={`nav-item ${adminTab === 'notes' ? 'active' : ''}`}
-              onClick={() => setAdminTab('notes')}
+              className={`nav-item ${activeTab === 'main' && adminTab === 'notes' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('main'); setAdminTab('notes'); }}
               title="Toplantı Notları"
               style={{ width: '50px', padding: 0 }}
             >
@@ -1319,23 +1366,7 @@ export default function KariyerPortal() {
 
           {/* Main Dashboard Area */}
           <div className="dashboard-content animate-fade-in">
-            {/* Top Sub-Navigation for Dashboard */}
-            <div className="tab-nav-container">
-              {[
-                { id: 'main', icon: LayoutDashboard, label: 'Genel' },
-                { id: 'analytics', icon: BarChart3, label: 'Analiz' },
-                { id: 'activity', icon: Clock, label: 'Akış' },
-                { id: 'calendar', icon: CalendarIcon, label: 'Takvim' }
-              ].map(t => (
-                <button 
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={`tab-nav-item ${activeTab === t.id ? 'active' : ''}`}
-                >
-                  <t.icon size={18} /> <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
+            {/* Top Sub-Navigation for Dashboard Removed (Moved to Sidebar) */}
 
             {announcements
               .filter(a => {
