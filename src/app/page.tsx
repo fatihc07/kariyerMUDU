@@ -229,7 +229,13 @@ export default function KariyerPortal() {
     e.preventDefault();
     setLoading(true);
     setAuthError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    let loginEmail = email;
+    if (!email.includes('@')) {
+      loginEmail = `${email.toLowerCase().trim()}@kariyer.mudu`;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
     if (error) setAuthError('Hatalı giriş: ' + error.message);
     else checkUser();
     setLoading(false);
@@ -448,13 +454,17 @@ export default function KariyerPortal() {
     // depending on Supabase settings, so we'll warn or use a DB-only approach if Auth is too complex.
     // However, the USER asked for Admin to create them.
     
+    const username = email.toLowerCase().trim();
+    const virtualEmail = `${username}@kariyer.mudu`;
+    
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: virtualEmail,
       password,
       options: {
         data: {
           role: 'lecturer',
-          full_name: itemName
+          full_name: itemName,
+          username: username
         }
       }
     });
@@ -468,6 +478,7 @@ export default function KariyerPortal() {
         await supabase.from('profiles').update({ 
           department_id: deptToAssign || null,
           full_name: itemName,
+          username: username,
           title: userTitle,
           title2: userTitle2 || null
         }).eq('id', data.user.id);
@@ -1092,8 +1103,8 @@ export default function KariyerPortal() {
           
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', textAlign: 'left' }}>
             <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.6, marginBottom: '8px', display: 'block' }}>E-POSTA ADRESİ</label>
-              <input type="email" placeholder="ornek@kariyer.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.6, marginBottom: '8px', display: 'block' }}>KULLANICI ADI</label>
+              <input type="text" placeholder="kullaniciadi" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.6, marginBottom: '8px', display: 'block' }}>ŞİFRE</label>
@@ -1355,7 +1366,7 @@ export default function KariyerPortal() {
                       <form onSubmit={createLecturer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <h4>Yeni Hoca Hesabı</h4>
                         <input value={itemName} onChange={e => setItemName(e.target.value)} placeholder="Hoca Tam Adı" required />
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="E-posta" required />
+                        <input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="Kullanıcı Adı" required />
                         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Geçici Şifre" required />
                         
                         {role === 'admin' ? (
