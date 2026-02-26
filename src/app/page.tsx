@@ -147,9 +147,7 @@ export default function KariyerPortal() {
       const { data: deptNotes } = await supabase.from('meeting_notes').select('*, departments(name)').eq('department_id', profile.department_id).order('created_at', { ascending: false });
       if (deptNotes) setNotes(deptNotes);
       
-      // Calculate next meeting number
-      const count = deptNotes ? deptNotes.length : 0;
-      setItemName(`Kariyer Koordinatörlüğü Toplantısı ${count + 1}`);
+      // Calculate next meeting number (Logic removed to prevent pre-populating unrelated text fields)
 
       const { data: acts } = await supabase.from('activity_log').select('*, departments(name)').eq('department_id', profile.department_id).order('created_at', { ascending: false }).limit(20);
       if (acts) setActivities(acts);
