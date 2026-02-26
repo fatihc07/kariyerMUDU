@@ -576,8 +576,12 @@ export default function KariyerPortal() {
   const deleteNote = async (id: string) => {
     if (!confirm('Bu toplantı notunu silmek istediğinize emin misiniz?')) return;
     const { error } = await supabase.from('meeting_notes').delete().eq('id', id);
-    if (error) alert('Silme hatası: ' + error.message);
-    else fetchDashboardData(userProfile);
+    if (error) {
+      console.error('Silme hatası:', error);
+      alert('Silme hatası: ' + error.message);
+    } else {
+      fetchDashboardData(userProfile);
+    }
   };
 
   const exportPDF = (notesToExport: any[], titlePrefix: string) => {
