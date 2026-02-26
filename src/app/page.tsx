@@ -5,6 +5,9 @@ import { supabase } from '@/lib/supabaseClient';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import mammoth from 'mammoth';
+import dynamic from 'next/dynamic';
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
+import 'react-quill-new/dist/quill.snow.css';
 import { 
   LayoutDashboard, 
   Users, 
@@ -223,6 +226,28 @@ export default function KariyerPortal() {
       alert('Dosya okunurken bir hata oluştu.');
       setLoading(false);
     }
+  };
+
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'link', 'image'
+  ];
+
+  const stripHtml = (html: string) => {
+    if (typeof window === 'undefined') return html;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -568,7 +593,7 @@ export default function KariyerPortal() {
 
     const tableData = notesToExport.map(n => [
       n.title,
-      n.content.substring(0, 100) + (n.content.length > 100 ? '...' : ''),
+      stripHtml(n.content).substring(0, 100) + (stripHtml(n.content).length > 100 ? '...' : ''),
       new Date(n.created_at).toLocaleDateString('tr-TR'),
       n.departments?.name || 'Genel'
     ]);
@@ -578,7 +603,7 @@ export default function KariyerPortal() {
       head: [['Başlık', 'Özet', 'Tarih', 'Bölüm']],
       body: tableData,
       styles: { fontSize: 9, font: 'helvetica' },
-      headStyles: { fillColor: [79, 70, 229] }
+      headStyles: { fillColor: [255, 94, 26] }
     });
 
     doc.save(`${titlePrefix}_toplanti_notlari.pdf`);
@@ -1828,15 +1853,22 @@ export default function KariyerPortal() {
                         placeholder="Toplantı Başlığı" 
                         style={{ border: 'none', background: 'rgba(255,255,255,0.03)' }}
                       />
-                      <textarea 
-                        value={itemExtra} 
-                        onChange={e => setItemExtra(e.target.value)} 
-                        placeholder="Kararlar, notlar ve detaylar..." 
-                        style={{ height: '180px', border: 'none', background: 'rgba(255,255,255,0.03)', resize: 'none' }} 
-                      />
-                      <button className="btn-primary" style={{ width: '100%' }} onClick={() => addNote()}>
-                        <Printer size={18} /> Toplantıyı Kaydet
-                      </button>
+                      <div className="quill-container" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', minHeight: '200px' }}>
+                        <ReactQuill 
+                          theme="snow" 
+                          value={itemExtra} 
+                          onChange={setItemExtra}
+                          modules={quillModules}
+                          formats={quillFormats}
+                          placeholder="Kararlar, notlar ve detaylar..."
+                          style={{ height: '200px', border: 'none' }}
+                        />
+                      </div>
+                      <div style={{ marginTop: '50px' }}>
+                        <button className="btn-primary" style={{ width: '100%' }} onClick={() => addNote()}>
+                          <Printer size={18} /> Toplantıyı Kaydet
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1981,17 +2013,18 @@ export default function KariyerPortal() {
                 🖨️ PDF İndir
               </button>
             </div>
-            <div style={{ 
-              background: 'rgba(255,255,255,0.05)', 
-              padding: '1.5rem', 
-              borderRadius: '12px', 
-              maxHeight: '400px', 
-              overflowY: 'auto',
-              whiteSpace: 'pre-wrap',
-              lineHeight: '1.6'
-            }}>
-              {selectedNote.content}
-            </div>
+            <div 
+              className="note-content"
+              style={{ 
+                background: 'rgba(255,255,255,0.05)', 
+                padding: '1.5rem', 
+                borderRadius: '12px', 
+                maxHeight: '400px', 
+                overflowY: 'auto',
+                lineHeight: '1.6'
+              }}
+              dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+            />
             <button className="btn-primary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setShowNoteModal(false)}>Kapat</button>
           </div>
         </div>
@@ -2014,13 +2047,19 @@ export default function KariyerPortal() {
               </div>
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.6, marginBottom: '8px', display: 'block' }}>TOPLANTI ÖZETİ</label>
-                <textarea 
-                  value={itemExtra} 
-                  onChange={e => setItemExtra(e.target.value)} 
-                  placeholder="Görüşülen konular, alınan kararlar..." 
-                  style={{ height: '150px' }}
-                />
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', overflow: 'hidden' }}>
+                  <ReactQuill 
+                    theme="snow" 
+                    value={itemExtra} 
+                    onChange={setItemExtra}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="Görüşülen konular..."
+                    style={{ height: '180px' }}
+                  />
+                </div>
               </div>
+              <div style={{ marginTop: '40px' }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                 <button className="btn-secondary" onClick={() => setShowQuickNoteModal(false)}>İptal</button>
                 <button className="btn-primary" onClick={() => addNote(targetDate)}>Kaydet</button>
