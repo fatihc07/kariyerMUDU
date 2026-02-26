@@ -35,6 +35,7 @@ import {
   User,
   ArrowLeft,
   MapPin,
+  Key,
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -46,7 +47,7 @@ const CHART_COLORS = ['#ff5e1a', '#00d2ff', '#4ade80', '#fbbf24', '#f87171', '#8
 
 export default function KariyerPortal() {
   const [activeView, setActiveView] = useState<'public' | 'login' | 'dashboard' | 'settings' | 'notes'>('public');
-  const [adminTab, setAdminTab] = useState<'depts' | 'lecturers' | 'firms' | 'notes' | 'announcements'>('depts');
+  const [adminTab, setAdminTab] = useState<'depts' | 'lecturers' | 'firms' | 'notes' | 'announcements' | 'reset_requests'>('depts');
   
   // Data States
   const [departments, setDepartments] = useState<any[]>([]);
@@ -83,6 +84,7 @@ export default function KariyerPortal() {
   // New States (Features 1-8)
   const [activities, setActivities] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [sector, setSector] = useState('');
   const [pocName, setPocName] = useState('');
   const [pocEmail, setPocEmail] = useState('');
@@ -168,11 +170,14 @@ export default function KariyerPortal() {
       if (acts) setActivities(acts);
     }
 
-    const { data: ann } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
-    if (ann) setAnnouncements(ann);
+      const { data: ann } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+      if (ann) setAnnouncements(ann);
 
-    if (profile.role === 'admin') {
-      const { data: allActs } = await supabase.from('activity_log').select('*, departments(name)').order('created_at', { ascending: false }).limit(50);
+      if (profile.role === 'admin') {
+        const { data: resReq } = await supabase.from('password_reset_requests').select('*').eq('status', 'açık').order('created_at', { ascending: false });
+        if (resReq) setResetRequests(resReq);
+        
+        const { data: allActs } = await supabase.from('activity_log').select('*, departments(name)').order('created_at', { ascending: false }).limit(50);
       if (allActs) setActivities(allActs);
     }
 
@@ -284,17 +289,25 @@ export default function KariyerPortal() {
     setLoading(false);
   };
 
-  const resetPassword = async (targetEmail?: string) => {
-    const emailToUse = targetEmail || email;
-    if (!emailToUse) {
-      alert('Lütfen e-posta adresinizi girin.');
+  const submitResetRequest = async () => {
+    if (!email) {
+      alert('Lütfen kullanıcı adınızı girin.');
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(emailToUse, {
-      redirectTo: window.location.origin,
-    });
-    if (error) alert('Hata: ' + error.message);
-    else alert('Şifre sıfırlama bağlantısı e-posta adresine gönderildi.');
+    setLoading(true);
+    // Find user profile to get full name and dept
+    const { data: profile } = await supabase.from('profiles').select('*, departments(name)').eq('username', email.toLowerCase().trim()).single();
+    
+    const { error } = await supabase.from('password_reset_requests').insert([{
+      username: email.toLowerCase().trim(),
+      full_name: profile?.full_name || 'Bilinmeyen Kullanıcı',
+      department_name: profile?.departments?.name || 'Belirtilmemiş',
+      status: 'açık'
+    }]);
+
+    if (error) alert('Talep gönderilemedi: ' + error.message);
+    else alert('Şifre sıfırlama talebiniz başarıyla yöneticiye iletildi.');
+    setLoading(false);
   };
 
   // Create Actions
@@ -1145,7 +1158,7 @@ export default function KariyerPortal() {
           
           <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'center', gap: '1.5rem' }}>
             <button onClick={() => setActiveView('public')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer' }}>← Geri Dön</button>
-            <button onClick={() => resetPassword()} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '0.85rem', cursor: 'pointer' }}>Şifremi Unuttum?</button>
+            <button onClick={submitResetRequest} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '0.85rem', cursor: 'pointer' }}>Şifremi Unuttum?</button>
           </div>
           <p style={{ fontSize: '0.7rem', marginTop: '1.5rem', opacity: 0.3 }}>Kariyer Koordinatörlüğü Bilgi Sistemi v2.0</p>
         </div>
@@ -1261,7 +1274,8 @@ export default function KariyerPortal() {
               </div>
             )}
             
-            <div 
+
+            <div
               className={`nav-item ${adminTab === 'announcements' ? 'active' : ''}`}
               onClick={() => setAdminTab('announcements')}
               title="Duyurular"
@@ -1270,7 +1284,21 @@ export default function KariyerPortal() {
               <Megaphone size={22} />
             </div>
 
-            <div 
+            {role === 'admin' && (
+              <div
+                className={`nav-item ${adminTab === 'reset_requests' ? 'active' : ''}`}
+                onClick={() => setAdminTab('reset_requests')}
+                title="Şifre Talepleri"
+                style={{ width: '50px', padding: 0, position: 'relative' }}
+              >
+                <Key size={22} />
+                {resetRequests.length > 0 && (
+                  <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'var(--primary)', width: '8px', height: '8px', borderRadius: '50%' }} />
+                )}
+              </div>
+            )}
+
+            <div
               className={`nav-item ${adminTab === 'notes' ? 'active' : ''}`}
               onClick={() => setAdminTab('notes')}
               title="Toplantı Notları"
@@ -1329,6 +1357,33 @@ export default function KariyerPortal() {
             {activeTab === 'analytics' && renderAnalytics()}
             {activeTab === 'activity' && renderActivity()}
             {activeTab === 'calendar' && renderCalendar()}
+            {adminTab === 'reset_requests' && (
+              <div className="glass card animate-fade-in">
+                <h3 style={{ marginBottom: '1.5rem' }}>Gelen Şifre Sıfırlama Talepleri</h3>
+                {resetRequests.length === 0 ? (
+                  <p style={{ opacity: 0.5 }}>Bekleyen talep bulunmuyor.</p>
+                ) : (
+                  <div className="grid" style={{ gridTemplateColumns: '1fr' }}>
+                    {resetRequests.map(req => (
+                      <div key={req.id} className="glass card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)' }}>{req.full_name}</div>
+                          <div style={{ fontSize: '0.85rem', opacity: 0.6 }}>Kullanıcı Adı: <strong>{req.username}</strong> | Bölüm: {req.department_name}</div>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '4px' }}>Tarih: {new Date(req.created_at).toLocaleString('tr-TR')}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                           <button className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.8rem' }} onClick={async () => {
+                             await supabase.from('password_reset_requests').update({ status: 'çözüldü' }).eq('id', req.id);
+                             fetchDashboardData(userProfile);
+                           }}>İptal/Kapat</button>
+                           <button className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.8rem' }} onClick={() => setAdminTab('lecturers')}>Hocalara Git</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {activeTab === 'main' && (
               <>
                 {(role === 'admin' || (role === 'lecturer' && (adminTab === 'lecturers' || adminTab === 'announcements'))) ? (
@@ -1510,13 +1565,13 @@ export default function KariyerPortal() {
                                         </select>
                                       </div>
                                       <div style={{ alignSelf: 'flex-end', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <button 
-                                          onClick={() => resetPassword(p.email)}
-                                          style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
-                                          title="Şifre Sıfırlama Maili Gönder"
-                                        >
-                                          Şifreyi Sıfırla
-                                        </button>
+                                         <button 
+                                           onClick={() => alert(`Bu hocanın (${p.email}) şifresini sıfırlamak için Supabase paneline gidip 'Authentication' kısmından yeni şifre tanımlayabilirsiniz.`)}
+                                           style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
+                                           title="Şifre Sıfırlama Bilgisi"
+                                         >
+                                           Şifreyi Sıfırla
+                                         </button>
                                         <Trash2 
                                           size={16} 
                                           style={{ cursor: 'pointer', color: '#f87171', opacity: 0.8 }} 
