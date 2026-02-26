@@ -19,6 +19,7 @@ import {
   FileDown,
   Printer,
   ChevronRight,
+  ChevronLeft,
   UserCircle,
   Trash2,
   Activity,
@@ -92,6 +93,8 @@ export default function KariyerPortal() {
   const [userTitle, setUserTitle] = useState('Bölüm Hocası');
   const [userTitle2, setUserTitle2] = useState('');
   const [firmSearch, setFirmSearch] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,6 +102,15 @@ export default function KariyerPortal() {
     checkUser();
     fetchPublicData();
   }, []);
+
+  useEffect(() => {
+    setItemName('');
+    setItemExtra('');
+    setEmail('');
+    setPassword('');
+    setAuthError('');
+    setSuccessMsg('');
+  }, [activeView, adminTab, activeTab]);
 
   const checkUser = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -525,6 +537,13 @@ export default function KariyerPortal() {
     }
   };
 
+  const deleteNote = async (id: string) => {
+    if (!confirm('Bu toplantı notunu silmek istediğinize emin misiniz?')) return;
+    const { error } = await supabase.from('meeting_notes').delete().eq('id', id);
+    if (error) alert('Silme hatası: ' + error.message);
+    else fetchDashboardData(userProfile);
+  };
+
   const exportPDF = (notesToExport: any[], titlePrefix: string) => {
     const doc = new jsPDF() as any;
     
@@ -657,53 +676,104 @@ export default function KariyerPortal() {
   );
 
   const renderCalendar = () => {
+    const monthNames = [
+      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+    ];
+
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+
     const notesByDate = notes.reduce((acc: any, n) => {
-      const date = new Date(n.created_at).toLocaleDateString('tr-TR');
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(n);
+      const d = new Date(n.created_at);
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+         const date = d.toLocaleDateString('tr-TR');
+         if (!acc[date]) acc[date] = [];
+         acc[date].push(n);
+      }
       return acc;
     }, {});
 
+    const prevMonth = () => {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(v => v - 1);
+      } else {
+        setCurrentMonth(v => v - 1);
+      }
+    };
+
+    const nextMonth = () => {
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(v => v + 1);
+      } else {
+        setCurrentMonth(v => v + 1);
+      }
+    };
+
     return (
       <div className="glass card animate-fade-in" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Toplantı Takvimi
-          <span style={{ fontSize: '0.8rem', opacity: 0.5, fontWeight: 400 }}>Güne tıklayarak toplantı ekleyebilirsiniz</span>
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div>
+            <h3 style={{ marginBottom: '4px' }}>Toplantı Takvimi</h3>
+            <span style={{ fontSize: '0.8rem', opacity: 0.5, fontWeight: 400 }}>Güne tıklayarak toplantı ekleyebilirsiniz</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', background: 'rgba(255,255,255,0.03)', padding: '8px 16px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <button onClick={prevMonth} className="nav-item" style={{ padding: '5px', background: 'transparent' }}><ChevronLeft size={20} /></button>
+            <div style={{ fontWeight: 800, fontSize: '1rem', minWidth: '120px', textAlign: 'center' }}>
+              {monthNames[currentMonth]} {currentYear}
+            </div>
+            <button onClick={nextMonth} className="nav-item" style={{ padding: '5px', background: 'transparent' }}><ChevronRight size={20} /></button>
+          </div>
+        </div>
+
         <div className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
           {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 800, padding: '10px', opacity: 0.4 }}>{d}</div>
           ))}
-          {[...Array(31)].map((_, i) => {
-            const dateStr = `${i + 1}.06.2024`;
+          
+          {[...Array(offset)].map((_, i) => (
+            <div key={`empty-${i}`} style={{ minHeight: '80px', opacity: 0.1 }} />
+          ))}
+
+          {[...Array(daysInMonth)].map((_, i) => {
+            const day = i + 1;
+            const dateStr = `${day < 10 ? '0'+day : day}.${currentMonth + 1 < 10 ? '0'+(currentMonth+1) : currentMonth+1}.${currentYear}`;
             const dayNotes = notesByDate[dateStr] || [];
+            const isToday = day === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
+
             return (
               <div 
-                key={i} 
+                key={day} 
                 className="glass" 
                 onClick={() => {
                   setTargetDate(dateStr);
-                  setItemName(`Kariyer Toplantısı - ${dateStr}`);
+                  setItemName('');
                   setShowQuickNoteModal(true);
                 }}
                 style={{ 
                   minHeight: '80px', 
                   padding: '8px', 
                   borderRadius: '12px', 
-                  background: dayNotes.length > 0 ? 'rgba(255, 94, 26, 0.15)' : 'rgba(255,255,255,0.01)',
+                  background: isToday ? 'rgba(255, 94, 26, 0.08)' : (dayNotes.length > 0 ? 'rgba(255, 94, 26, 0.15)' : 'rgba(255,255,255,0.01)'),
                   cursor: 'pointer',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  transition: 'all 0.2s'
+                  border: isToday ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
+                  transition: 'all 0.2s',
+                  position: 'relative'
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = isToday ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}
               >
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, marginBottom: '4px', opacity: 0.3 }}>{i + 1}</div>
-                {dayNotes.map((n: any) => (
-                  <div key={n.id} style={{ fontSize: '0.55rem', padding: '3px 6px', background: 'var(--primary)', borderRadius: '4px', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {n.title}
-                  </div>
-                ))}
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, marginBottom: '4px', opacity: isToday ? 1 : 0.3, color: isToday ? 'var(--primary)' : 'inherit' }}>{day}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {dayNotes.map((n: any) => (
+                    <div key={n.id} style={{ fontSize: '0.55rem', padding: '3px 6px', background: 'var(--primary)', borderRadius: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {n.title}
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}
@@ -1448,6 +1518,11 @@ export default function KariyerPortal() {
                     <div className="grid">
                       {notes.map(n => (
                         <div key={n.id} className="glass card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => { setSelectedNote(n); setShowNoteModal(true); }}>
+                          <Trash2 
+                            size={14} 
+                            style={{ position: 'absolute', top: '10px', right: '10px', color: '#ef4444', opacity: 0.4, cursor: 'pointer', zIndex: 5 }} 
+                            onClick={(e) => { e.stopPropagation(); deleteNote(n.id); }}
+                          />
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                             <span className="badge" style={{ fontSize: '0.65rem' }}>{n.departments?.name}</span>
                             <span style={{ fontSize: '0.65rem', opacity: 0.5 }}>{new Date(n.created_at).toLocaleDateString('tr-TR')}</span>
@@ -1758,7 +1833,12 @@ export default function KariyerPortal() {
                     <h4 style={{ marginBottom: '1.2rem', opacity: 0.6, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>GEÇMİŞ TOPLANTILAR</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                       {notes.slice(0, 5).map(n => (
-                        <div key={n.id} className="glass" style={{ padding: '1rem', cursor: 'pointer', border: '1px solid rgba(255,94,26,0.1)' }} onClick={() => { setSelectedNote(n); setShowNoteModal(true); }}>
+                        <div key={n.id} className="glass" style={{ padding: '1rem', cursor: 'pointer', border: '1px solid rgba(255,94,26,0.1)', position: 'relative' }} onClick={() => { setSelectedNote(n); setShowNoteModal(true); }}>
+                          <Trash2 
+                            size={14} 
+                            style={{ position: 'absolute', top: '8px', right: '8px', color: '#ef4444', opacity: 0.3, cursor: 'pointer', zIndex: 5 }} 
+                            onClick={(e) => { e.stopPropagation(); deleteNote(n.id); }}
+                          />
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{n.title}</div>
                             <div style={{ fontSize: '0.7rem', opacity: 0.4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
