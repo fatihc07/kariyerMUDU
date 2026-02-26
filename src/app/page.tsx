@@ -1082,6 +1082,36 @@ export default function KariyerPortal() {
             
             {successMsg && <p style={{ color: '#4ade80', fontSize: '0.9rem', textAlign: 'center' }}>{successMsg}</p>}
           </form>
+
+          {role === 'lecturer' && (
+            <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <h4 style={{ marginBottom: '1rem', fontSize: '0.9rem', opacity: 0.8 }}>Koordinatörlük Kısayolları</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <button 
+                  onClick={() => {
+                    setActiveView('dashboard');
+                    setAdminTab('lecturers');
+                  }}
+                  className="glass"
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '1rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <Users size={20} color="var(--primary)" />
+                  <span style={{ fontSize: '0.75rem' }}>Bölümdaş Ekle</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setActiveView('dashboard');
+                    setAdminTab('announcements');
+                  }}
+                  className="glass"
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '1rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <Megaphone size={20} color="var(--accent)" />
+                  <span style={{ fontSize: '0.75rem' }}>Duyuru Paylaş</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1113,25 +1143,24 @@ export default function KariyerPortal() {
             </div>
 
             {role === 'admin' && (
-              <>
-                <div 
-                  className={`nav-item ${adminTab === 'firms' ? 'active' : ''}`}
-                  onClick={() => setAdminTab('firms')}
-                  title="Firma Havuzu"
-                  style={{ width: '50px', padding: 0 }}
-                >
-                  <Search size={22} />
-                </div>
-                <div 
-                  className={`nav-item ${adminTab === 'announcements' ? 'active' : ''}`}
-                  onClick={() => setAdminTab('announcements')}
-                  title="Duyurular"
-                  style={{ width: '50px', padding: 0 }}
-                >
-                  <Megaphone size={22} />
-                </div>
-              </>
+              <div 
+                className={`nav-item ${adminTab === 'firms' ? 'active' : ''}`}
+                onClick={() => setAdminTab('firms')}
+                title="Firma Havuzu"
+                style={{ width: '50px', padding: 0 }}
+              >
+                <Search size={22} />
+              </div>
             )}
+            
+            <div 
+              className={`nav-item ${adminTab === 'announcements' ? 'active' : ''}`}
+              onClick={() => setAdminTab('announcements')}
+              title="Duyurular"
+              style={{ width: '50px', padding: 0 }}
+            >
+              <Megaphone size={22} />
+            </div>
 
             <div 
               className={`nav-item ${adminTab === 'notes' ? 'active' : ''}`}
@@ -1194,7 +1223,7 @@ export default function KariyerPortal() {
             {activeTab === 'calendar' && renderCalendar()}
             {activeTab === 'main' && (
               <>
-                {(role === 'admin' || (role === 'lecturer' && adminTab === 'lecturers')) ? (
+                {(role === 'admin' || (role === 'lecturer' && (adminTab === 'lecturers' || adminTab === 'announcements'))) ? (
               /* ADMIN VIEWS */
               <>
                 {adminTab === 'depts' && (
