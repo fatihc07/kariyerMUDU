@@ -58,6 +58,7 @@ export default function KariyerPortal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -226,14 +227,33 @@ export default function KariyerPortal() {
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      alert('Şifreler eşleşmiyor!');
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) alert('Hata: ' + error.message);
     else {
-      alert('Şifre başarıyla güncellendi!');
+      setSuccessMsg('Şifre başarıyla güncellendi!');
       setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setSuccessMsg(''), 3000);
     }
     setLoading(false);
+  };
+
+  const resetPassword = async (targetEmail?: string) => {
+    const emailToUse = targetEmail || email;
+    if (!emailToUse) {
+      alert('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(emailToUse, {
+      redirectTo: window.location.origin,
+    });
+    if (error) alert('Hata: ' + error.message);
+    else alert('Şifre sıfırlama bağlantısı e-posta adresine gönderildi.');
   };
 
   // Create Actions
@@ -434,8 +454,9 @@ export default function KariyerPortal() {
     } else {
       // If a department was selected, update the profile immediately
       if (data.user) {
+        const deptToAssign = role === 'admin' ? selectedId : userProfile?.department_id;
         await supabase.from('profiles').update({ 
-          department_id: selectedId || null,
+          department_id: deptToAssign || null,
           full_name: itemName,
           title: userTitle,
           title2: userTitle2 || null
@@ -1016,6 +1037,7 @@ export default function KariyerPortal() {
           
           <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'center', gap: '1.5rem' }}>
             <button onClick={() => setActiveView('public')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer' }}>← Geri Dön</button>
+            <button onClick={() => resetPassword()} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '0.85rem', cursor: 'pointer' }}>Şifremi Unuttum?</button>
           </div>
           <p style={{ fontSize: '0.7rem', marginTop: '1.5rem', opacity: 0.3 }}>Kariyer Koordinatörlüğü Bilgi Sistemi v2.0</p>
         </div>
@@ -1046,11 +1068,17 @@ export default function KariyerPortal() {
                <label style={{ fontSize: '0.8rem', fontWeight: 700, opacity: 0.6, marginBottom: '8px', display: 'block' }}>YENİ ŞİFRE</label>
                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required placeholder="••••••••" />
             </div>
-            
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setActiveView('dashboard')}>Geri Dön</button>
-              <button className="btn-primary" style={{ flex: 1 }}>Şifreyi Güncelle</button>
-            </div>
+             <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, opacity: 0.6, marginBottom: '8px', display: 'block' }}>YENİ ŞİFREYİ ONAYLA</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="••••••••" />
+             </div>
+             
+             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+               <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setActiveView('dashboard')}>Geri Dön</button>
+               <button className="btn-primary" style={{ flex: 1 }} disabled={loading}>
+                 {loading ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}
+               </button>
+             </div>
             
             {successMsg && <p style={{ color: '#4ade80', fontSize: '0.9rem', textAlign: 'center' }}>{successMsg}</p>}
           </form>
@@ -1075,16 +1103,17 @@ export default function KariyerPortal() {
               <LayoutDashboard size={22} />
             </div>
 
+            <div 
+              className={`nav-item ${adminTab === 'lecturers' ? 'active' : ''}`}
+              onClick={() => setAdminTab('lecturers')}
+              title="Koordinatörler"
+              style={{ width: '50px', padding: 0 }}
+            >
+              <Users size={22} />
+            </div>
+
             {role === 'admin' && (
               <>
-                <div 
-                  className={`nav-item ${adminTab === 'lecturers' ? 'active' : ''}`}
-                  onClick={() => setAdminTab('lecturers')}
-                  title="Koordinatörler"
-                  style={{ width: '50px', padding: 0 }}
-                >
-                  <Users size={22} />
-                </div>
                 <div 
                   className={`nav-item ${adminTab === 'firms' ? 'active' : ''}`}
                   onClick={() => setAdminTab('firms')}
@@ -1165,7 +1194,7 @@ export default function KariyerPortal() {
             {activeTab === 'calendar' && renderCalendar()}
             {activeTab === 'main' && (
               <>
-                {role === 'admin' ? (
+                {(role === 'admin' || (role === 'lecturer' && adminTab === 'lecturers')) ? (
               /* ADMIN VIEWS */
               <>
                 {adminTab === 'depts' && (
@@ -1232,11 +1261,19 @@ export default function KariyerPortal() {
                         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="E-posta" required />
                         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Geçici Şifre" required />
                         
-                        <label style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.7 }}>Atanacak Bölüm:</label>
-                        <select value={selectedId} onChange={e => setSelectedId(e.target.value)} required>
-                          <option value="">Bölüm Seçin...</option>
-                          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
+                        {role === 'admin' ? (
+                          <>
+                            <label style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.7 }}>Atanacak Bölüm:</label>
+                            <select value={selectedId} onChange={e => setSelectedId(e.target.value)} required>
+                              <option value="">Bölüm Seçin...</option>
+                              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
+                          </>
+                        ) : (
+                          <div style={{ padding: '0.8rem', background: 'rgba(255, 94, 26, 0.1)', borderRadius: '12px', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                            <strong>Bölüm:</strong> {userProfile?.departments?.name}
+                          </div>
+                        )}
 
                         <label style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.7 }}>Ünvan:</label>
                         <select value={userTitle} onChange={e => setUserTitle(e.target.value)}>
@@ -1265,7 +1302,10 @@ export default function KariyerPortal() {
                       <div>
                         <h4>Tanımlı Hocalar</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                          {profiles.filter(p => p.role === 'lecturer').map(p => (
+                          {profiles
+                            .filter(p => p.role === 'lecturer')
+                            .filter(p => role === 'admin' || p.department_id === userProfile?.department_id)
+                            .map(p => (
                             <div key={p.id} className="glass" style={{ padding: '1rem', borderRadius: '16px', fontSize: '0.9rem' }}>
                               <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                                 <input 
@@ -1282,17 +1322,21 @@ export default function KariyerPortal() {
                               <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '8px' }}>{p.email}</div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                       <Users size={14} color="var(--accent)" />
-                                      <select 
-                                        value={p.department_id || ''} 
-                                        onChange={async (e) => {
-                                          await supabase.from('profiles').update({ department_id: e.target.value || null }).eq('id', p.id);
-                                          fetchDashboardData(userProfile);
-                                        }}
-                                        style={{ padding: '4px 8px', fontSize: '0.8rem', flex: 1 }}
-                                      >
-                                        <option value="">Bölüm Atanmamış</option>
-                                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                      </select>
+                                      {role === 'admin' ? (
+                                        <select 
+                                          value={p.department_id || ''} 
+                                          onChange={async (e) => {
+                                            await supabase.from('profiles').update({ department_id: e.target.value || null }).eq('id', p.id);
+                                            fetchDashboardData(userProfile);
+                                          }}
+                                          style={{ padding: '4px 8px', fontSize: '0.8rem', flex: 1 }}
+                                        >
+                                          <option value="">Bölüm Atanmamış</option>
+                                          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                        </select>
+                                      ) : (
+                                        <div style={{ flex: 1, fontSize: '0.8rem', opacity: 0.7 }}>{p.departments?.name}</div>
+                                      )}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1328,7 +1372,14 @@ export default function KariyerPortal() {
                                           <option value="Fakülte Temsilcisi">Fakülte Temsilcisi</option>
                                         </select>
                                       </div>
-                                      <div style={{ alignSelf: 'flex-end', marginTop: '4px' }}>
+                                      <div style={{ alignSelf: 'flex-end', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <button 
+                                          onClick={() => resetPassword(p.email)}
+                                          style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
+                                          title="Şifre Sıfırlama Maili Gönder"
+                                        >
+                                          Şifreyi Sıfırla
+                                        </button>
                                         <Trash2 
                                           size={16} 
                                           style={{ cursor: 'pointer', color: '#f87171', opacity: 0.8 }} 
@@ -1451,7 +1502,10 @@ export default function KariyerPortal() {
                           <label style={{ fontSize: '0.75rem', opacity: 0.5 }}>Hedef Hoca:</label>
                           <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={{ marginTop: '5px' }}>
                             <option value="">Tüm Hocalar</option>
-                            {profiles.filter(p => p.role === 'lecturer').map(p => (
+                            {profiles
+                            .filter(p => p.role === 'lecturer')
+                            .filter(p => role === 'admin' || p.department_id === userProfile?.department_id)
+                            .map(p => (
                               <option key={p.id} value={p.id}>{p.full_name}</option>
                             ))}
                           </select>
